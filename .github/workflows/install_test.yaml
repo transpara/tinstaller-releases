@@ -1,0 +1,73 @@
+name: Test Release Binaries
+
+# Triggers automatically on publish OR can be run manually
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'The release tag to test (e.g., v1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  e2e-test-release:
+    runs-on: ubuntu-latest
+    # Give the job permissions to read repository content for fetching releases
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. NEW: Determine which release tag to use
+      - name: Determine Release Tag
+        id: get_tag # Give the step an ID to reference its output
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # Triggered by a release, use its tag name
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "Using tag from release event: ${{ github.ref_name }}"
+          else
+            # Triggered manually, use the user's input
+            echo "tag=${{ inputs.release_tag }}" >> $GITHUB_OUTPUT
+            echo "Using tag from manual input: ${{ inputs.release_tag }}"
+          fi
+
+      # 2. MODIFIED: Download assets using the GitHub CLI
+      - name: Download Release Assets
+        env:
+          # The GITHUB_TOKEN is required for the gh CLI to authenticate
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use the tag determined in the previous step
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          
+          echo "Fetching assets for release tag: $TAG"
+          # `gh` simplifies downloading assets by pattern matching
+          gh release download "$TAG" --pattern 'install-k3s' --pattern 'install-tsystem'
+          
+          echo "✅ Assets downloaded successfully."
+
+      # 3. Make Binaries Executable (no change)
+      - name: Make Binaries Executable
+        run: chmod +x install-k3s install-tsystem
+
+      - name: Install k3s
+        run: NONINTERACTIVE=1 K3S_HOSTNAME=localhost ./install-k3s
+
+      - name: Verify k3s Cluster is Ready
+        run: kubectl wait --for=condition=Ready node --all --timeout=300s
+
+      - name: Install Application and TSystem
+        run: NONINTERACTIVE=1 TSYSTEM_HOSTNAME=localhost ./install-tsystem
+
+      - name: Verify Application Pods are Ready
+        run: |
+          kubectl wait --for=condition=Ready pod -l app=your-app-label -n your-namespace --timeout=300s
+          kubectl wait --for=condition=Ready pod -l app=tsystem-label -n your-namespace --timeout=300s
+
+      - name: Set up Python and Run E2E Tests
+        run: echo "Python test steps would run here..."
