@@ -9,6 +9,6 @@ curl -s -L -O "https://github.com/transpara/tinstaller-releases/releases/downloa
 ## Install tsystem and essentials
  
 ```bash
-curl -s -L -O "https://github.com/transpara/tinstaller-releases/releases/download/$(curl -s "https://api.github.com/repos/transpara/tinstaller-releases/releases/latest" | jq -r '.tag_name')/install-tsystem && chmod +x install-tsystem && ./install-tsystem
+curl -s -L -O "https://github.com/transpara/tinstaller-releases/releases/download/$(curl -s "https://api.github.com/repos/transpara/tinstaller-releases/releases/latest" | jq -r '.tag_name')/install-tsystem" && chmod +x install-tsystem && ./install-tsystem
 ```
  
