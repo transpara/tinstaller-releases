@@ -17,11 +17,11 @@ rm -f install-tsystem && curl -#LO "https://github.com/transpara/tinstaller-rele
 ## Clean up system (uninstall k3s and remove leftovers)
 
 ```bash
-rm -f uninstall-tsystem && VERSION=$(kubectl get tsystem -o jsonpath='{..spec.tSystemApi.config.TINSTALLER_VERSION}' | awk '{print $1}') && curl -#LO "https://github.com/transpara/tinstaller-releases/releases/download/$VERSION/uninstall-transpara.sh && chmod +x uninstall-transpara && ./uninstall-transpara --nuke-k3s
+rm -f uninstall-tsystem && VERSION=$(kubectl get tsystem -o jsonpath='{..spec.tSystemApi.config.TINSTALLER_VERSION}' | awk '{print $1}') && curl -#LO "https://github.com/transpara/tinstaller-releases/releases/download/$VERSION/uninstall-transpara.sh" && chmod +x uninstall-transpara && ./uninstall-transpara --nuke-k3s
 ```
 
 ## Remove transpara components without affecting the rest of the cluster
 
 ```bash
-rm -f uninstall-tsystem && VERSION=$(kubectl get tsystem -o jsonpath='{..spec.tSystemApi.config.TINSTALLER_VERSION}' | awk '{print $1}') && curl -#LO "https://github.com/transpara/tinstaller-releases/releases/download/$VERSION/uninstall-transpara.sh && chmod +x uninstall-transpara && ./uninstall-transpara
+rm -f uninstall-tsystem && VERSION=$(kubectl get tsystem -o jsonpath='{..spec.tSystemApi.config.TINSTALLER_VERSION}' | awk '{print $1}') && curl -#LO "https://github.com/transpara/tinstaller-releases/releases/download/$VERSION/uninstall-transpara.sh" && chmod +x uninstall-transpara && ./uninstall-transpara
 ```
