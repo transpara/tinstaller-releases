@@ -11,7 +11,9 @@ rm -f install-k3s && curl -#LO "https://github.com/transpara/tinstaller-releases
 ```bash
 rm -f install-tsystem && curl -#LO "https://github.com/transpara/tinstaller-releases/releases/download/$(curl -s "https://api.github.com/repos/transpara/tinstaller-releases/releases/latest" | jq -r '.tag_name')/install-tsystem" && chmod +x install-tsystem && ./install-tsystem
 ```
- 
+
+# Uninstall
+
 ## Clean up system (uninstall k3s and remove leftovers)
 
 ```bash
