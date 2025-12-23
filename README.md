@@ -3,13 +3,13 @@
 ## Install k3s
 
 ```bash
-curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/get-and-run.sh | bash -s -- install-k3s
+bash <(curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/get-and-run.sh) install-k3s
 ```
 
 ## Install tsystem and essentials
  
 ```bash
-curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/get-and-run.sh | bash -s -- install-tsystem
+bash <(curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/get-and-run.sh) install-tsystem
 ```
 
 # Uninstall
