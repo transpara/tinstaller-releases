@@ -24,15 +24,21 @@ jobs:
           ORG: "transpara"
           INSTALLER_REPO: "tinstaller-releases"
         run: |
-          # Define your components here
           COMPONENTS=("tstudio-py" "tview" "tgraph-api" "tsystem" "tcalc" "tauth-scraper" "tstore-interface" "extractor-telegraf" "extractor-opcua" "extractor_odbc")
           
-          # 1. Get the date of the PREVIOUS release (before the one just created)
-          # We skip the latest one because that's the one currently being made
+          # Get the date of the PREVIOUS release
           LAST_RELEASE_DATE=$(gh release list --repo "$ORG/$INSTALLER_REPO" --limit 2 --json publishedAt --jq '.[1].publishedAt')
-          
-          # If no previous release exists, use a very old date
           if [ -z "$LAST_RELEASE_DATE" ]; then LAST_RELEASE_DATE="1970-01-01T00:00:00Z"; fi
+
+          # Identify which tag to update
+          # If github.ref_name is a tag (from push tags), use it. 
+          # Otherwise (workflow_dispatch), fetch the latest tag from the API.
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TARGET_TAG="${{ github.ref_name }}"
+          else
+            TARGET_TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+          echo "target_tag=$TARGET_TAG" >> $GITHUB_ENV
 
           {
             echo "## Joint Release Notes"
@@ -59,6 +65,7 @@ jobs:
       - name: Update Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ env.target_tag }}
           body_path: JOINT_RELEASE_NOTES.md
           append_body: true
         env:
