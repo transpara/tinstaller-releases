@@ -1,0 +1,62 @@
+name: Generate Joint Release Notes
+on:
+  push:
+    tags:
+      - '*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Notes
+        id: generate_notes
+        env:
+          GH_TOKEN: ${{ secrets.READ_ALL_TOKEN }}
+          ORG: "transpara"
+          INSTALLER_REPO: "tinstaller-releases"
+        run: |
+          # Define your components here
+          COMPONENTS=("tstudio-py" "tview" "tgraph-api" "tsystem" "tcalc" "tauth-scraper" "tstore-interface" "extractor-telegraf" "extractor-opcua" "extractor_odbc")
+          
+          # 1. Get the date of the PREVIOUS release (before the one just created)
+          # We skip the latest one because that's the one currently being made
+          LAST_RELEASE_DATE=$(gh release list --repo "$ORG/$INSTALLER_REPO" --limit 2 --json publishedAt --jq '.[1].publishedAt')
+          
+          # If no previous release exists, use a very old date
+          if [ -z "$LAST_RELEASE_DATE" ]; then LAST_RELEASE_DATE="1970-01-01T00:00:00Z"; fi
+
+          {
+            echo "## Joint Release Notes"
+            echo "Aggregated updates since: $LAST_RELEASE_DATE"
+            echo ""
+            
+            for REPO in "${COMPONENTS[@]}"; do
+                NEW_TAGS=$(gh release list --repo "$ORG/$REPO" --json tagName,publishedAt | \
+                jq -r ".[] | select(.publishedAt > \"$LAST_RELEASE_DATE\") | .tagName")
+
+                if [ -n "$NEW_TAGS" ]; then
+                    echo "### $REPO"
+                    for TAG in $NEW_TAGS; do
+                        echo "#### Release: $TAG"
+                        gh release view "$TAG" --repo "$ORG/$REPO" --json body --template '{{.body}}'
+                        echo -e "\n"
+                    done
+                    echo "---"
+                fi
+            done
+          } > JOINT_RELEASE_NOTES.md
+
+      - name: Update Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          body_path: JOINT_RELEASE_NOTES.md
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
