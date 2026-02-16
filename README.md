@@ -9,7 +9,7 @@ bash <(curl -sfL https://github.com/transpara/tinstaller-releases/releases/lates
 ## Install tsystem and essentials
  
 ```bash
-bash <(curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/get-and-run.sh) install-tsystem
+source ~/.bashrc && bash <(curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/get-and-run.sh) install-tsystem
 ```
 
 # Uninstall
