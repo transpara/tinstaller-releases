@@ -19,56 +19,74 @@ readonly ORG="${ORG:-transpara}"
 readonly INSTALLER_REPO="${INSTALLER_REPO:-tinstaller-releases}"
 readonly OUTPUT_FILE="${OUTPUT_FILE:-PLATFORM_RELEASE_NOTES.md}"
 
-# Component registry: yaml_path|display_name|github_repo|type|tag_prefix
-# type: transpara = full release notes, thirdparty = version table row
-# tag_prefix: for repos with non-standard tag naming (e.g. transpara-operator-)
-readonly COMPONENTS=(
-  # Transpara application images
-  "container_images.tsystem.version|tsystem|tsystem|transpara|"
-  "container_images.tsystemevent.version|tevent-processor|tsystem|transpara|"
-  "container_images.tauth.version|tauth|tauth|transpara|"
-  "container_images.tauth_scraper.version|tauth-scraper|tauth-scraper|transpara|"
-  "container_images.tstudio.version|tstudio|tstudio-py|transpara|"
-  "container_images.tgraph.version|tgraph|tgraph-api|transpara|"
-  "container_images.tgraph_controller.version|tgraph-controller|tgraph-api|transpara|"
-  "container_images.tcalc.version|tcalc|tcalc|transpara|"
-  "container_images.tview.version|tview|tview|transpara|"
-  "container_images.taigateway.version|tai-gateway|tai-gateway|transpara|"
-  "container_images.tsystem_watcher.version|tsystem-watcher|tsystem-watcher|transpara|"
-  "container_images.mcp_memgraph.version|mcp-memgraph|mcp-memgraph|transpara|"
-  "container_images.interfaces.tstore.version|tstore-interface|tstore-interface|transpara|"
-  # Transpara extractors
-  "container_images.extractors.odbc.version|extractor-odbc|extractor_odbc|transpara|"
-  "container_images.extractors.opcua.version|extractor-opcua|extractor-opcua|transpara|"
-  "container_images.extractors.telegraf.version|extractor-telegraf|extractor-telegraf|transpara|"
-  # Transpara operator (tag prefix: transpara-operator-X.Y.Z)
-  "operators.transpara.version|transpara-operator|deployment|transpara|transpara-operator-"
-  # Third-party container images
-  "container_images.emqx.version|EMQX|—|thirdparty|"
-  "container_images.timescale.version|TimescaleDB|—|thirdparty|"
-  "container_images.valkey.version|Valkey|—|thirdparty|"
-  "container_images.keycloak.version|Keycloak|—|thirdparty|"
-  # Third-party infrastructure
-  "k3s.version|K3s|—|thirdparty|"
-  "helm.version|Helm|—|thirdparty|"
-  "envoy_gateway.version|Envoy Gateway|—|thirdparty|"
-  # Third-party Helm charts
-  "charts.cert_manager.version|cert-manager (chart)|—|thirdparty|"
-  "charts.prometheus.version|Prometheus stack (chart)|—|thirdparty|"
-  "charts.grafana_cnpg.version|Grafana CNPG (chart)|—|thirdparty|"
-  "charts.longhorn.version|Longhorn (chart)|—|thirdparty|"
-  "charts.emqx_operator.version|EMQX operator (chart)|—|thirdparty|"
-  "charts.valkey.version|Valkey (chart)|—|thirdparty|"
-  "charts.memgraph_lab.version|Memgraph Lab (chart)|—|thirdparty|"
-  "charts.memgraph.version|Memgraph (chart)|—|thirdparty|"
-  "charts.cnpg_operator.version|CNPG operator (chart)|—|thirdparty|"
-  "charts.zfs_localpv.version|ZFS LocalPV (chart)|—|thirdparty|"
-  "charts.headlamp.version|Headlamp (chart)|—|thirdparty|"
-  "charts.kyverno.version|Kyverno (chart)|—|thirdparty|"
-  "charts.kyverno_policies.version|Kyverno Policies (chart)|—|thirdparty|"
-  # Tools
-  "tools.crane.version|crane|—|thirdparty|"
-)
+# Component registry — loaded from components.yaml (single source of truth).
+# Format after loading: yaml_path.version|display_name|github_repo|type|tag_prefix
+COMPONENTS=()
+
+# Loads components from a components.yaml file into the COMPONENTS array.
+# Produces the same pipe-delimited format consumed by downstream functions.
+load_components() {
+  local file="$1"
+  COMPONENTS=()
+  local comp_types=("transpara" "thirdparty")
+  for comp_type in "${comp_types[@]}"; do
+    local count
+    count=$(yq e ".${comp_type} | length" "${file}")
+    for (( i=0; i<count; i++ )); do
+      local yaml_path display_name github_repo tag_prefix
+      yaml_path=$(yq e ".${comp_type}[$i].yaml_path" "${file}")
+      display_name=$(yq e ".${comp_type}[$i].display_name" "${file}")
+      github_repo=$(yq e ".${comp_type}[$i].github_repo // \"—\"" "${file}")
+      tag_prefix=$(yq e ".${comp_type}[$i].tag_prefix // \"\"" "${file}")
+      COMPONENTS+=("${yaml_path}.version|${display_name}|${github_repo}|${comp_type}|${tag_prefix}")
+    done
+  done
+}
+
+# Fallback component list for releases that pre-date the components.yaml asset.
+# Remove this function after all active releases include components.yaml.
+load_components_fallback() {
+  COMPONENTS=(
+    "container_images.tsystem.version|tsystem|tsystem-api|transpara|"
+    "container_images.tsystemevent.version|tevent-processor|tevent-processor|transpara|"
+    "container_images.tauth.version|tauth|tauth|transpara|"
+    "container_images.tauth_scraper.version|tauth-scraper|tauth-scraper|transpara|"
+    "container_images.tstudio.version|tstudio|tstudio|transpara|"
+    "container_images.tgraph.version|tgraph|tgraph-api|transpara|"
+    "container_images.tgraph_controller.version|tgraph-controller|tgraph-controller|transpara|"
+    "container_images.tcalc.version|tcalc|tcalc-api|transpara|"
+    "container_images.tview.version|tview|tview|transpara|"
+    "container_images.taigateway.version|tai-gateway|tai-gateway|transpara|"
+    "container_images.tsystem_watcher.version|tsystem-watcher|tsystem-watcher|transpara|"
+    "container_images.mcp_memgraph.version|mcp-memgraph|mcp-memgraph|transpara|"
+    "container_images.interfaces.tstore.version|tstore-interface|tstore-interface|transpara|"
+    "container_images.extractors.odbc.version|extractor-odbc|extractor-odbc|transpara|"
+    "container_images.extractors.opcua.version|extractor-opcua|extractor-opcua|transpara|"
+    "container_images.extractors.telegraf.version|extractor-telegraf|extractor-telegraf|transpara|"
+    "operators.transpara.version|transpara-operator|deployment|transpara|transpara-operator-"
+    "container_images.emqx.version|EMQX|—|thirdparty|"
+    "container_images.timescale.version|TimescaleDB|—|thirdparty|"
+    "container_images.valkey.version|Valkey|—|thirdparty|"
+    "container_images.keycloak.version|Keycloak|—|thirdparty|"
+    "k3s.version|K3s|—|thirdparty|"
+    "helm.version|Helm|—|thirdparty|"
+    "envoy_gateway.version|Envoy Gateway|—|thirdparty|"
+    "charts.cert_manager.version|cert-manager (chart)|—|thirdparty|"
+    "charts.prometheus.version|Prometheus stack (chart)|—|thirdparty|"
+    "charts.grafana_cnpg.version|Grafana CNPG (chart)|—|thirdparty|"
+    "charts.longhorn.version|Longhorn (chart)|—|thirdparty|"
+    "charts.emqx_operator.version|EMQX operator (chart)|—|thirdparty|"
+    "charts.valkey.version|Valkey (chart)|—|thirdparty|"
+    "charts.memgraph_lab.version|Memgraph Lab (chart)|—|thirdparty|"
+    "charts.memgraph.version|Memgraph (chart)|—|thirdparty|"
+    "charts.cnpg_operator.version|CNPG operator (chart)|—|thirdparty|"
+    "charts.zfs_localpv.version|ZFS LocalPV (chart)|—|thirdparty|"
+    "charts.headlamp.version|Headlamp (chart)|—|thirdparty|"
+    "charts.kyverno.version|Kyverno (chart)|—|thirdparty|"
+    "charts.kyverno_policies.version|Kyverno Policies (chart)|—|thirdparty|"
+    "tools.crane.version|crane|—|thirdparty|"
+  )
+}
 
 # ── Logging ────────────────────────────────────────────────────────────
 log()    { echo "[*] $*" >&2; }
@@ -462,6 +480,17 @@ main() {
     else
       warn "Could not download versions.yaml from previous release ${prev_tag}"
     fi
+  fi
+
+  # Load component registry from components.yaml (single source of truth)
+  log "Downloading components.yaml for ${target_tag} ..."
+  if gh release download "${target_tag}" --repo "${ORG}/${INSTALLER_REPO}" \
+      --pattern "components.yaml" --dir "${workdir}/current" 2>/dev/null; then
+    load_components "${workdir}/current/components.yaml"
+    log "Loaded ${#COMPONENTS[@]} components from components.yaml"
+  else
+    warn "components.yaml not found in release ${target_tag} — using built-in fallback"
+    load_components_fallback
   fi
 
   # Generate the release notes document
