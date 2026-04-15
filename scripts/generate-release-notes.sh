@@ -54,12 +54,17 @@ load_components_fallback() {
     "container_images.tstudio.version|tstudio|tstudio|transpara|"
     "container_images.tgraph.version|tgraph|tgraph-api|transpara|"
     "container_images.tgraph_controller.version|tgraph-controller|tgraph-controller|transpara|"
-    "container_images.tcalc.version|tcalc|tcalc-api|transpara|"
+    "container_images.tcalc_api.version|tcalc-api|tcalc|transpara|"
+    "container_images.tcalc_scheduler.version|tcalc-scheduler|tcalc|transpara|"
+    "container_images.tcalc_worker.version|tcalc-worker|tcalc|transpara|"
+    "container_images.tcalc_event_scheduler.version|tcalc-event-scheduler|tcalc|transpara|"
     "container_images.tview.version|tview|tview|transpara|"
     "container_images.taigateway.version|tai-gateway|tai-gateway|transpara|"
     "container_images.tsystem_watcher.version|tsystem-watcher|tsystem-watcher|transpara|"
     "container_images.mcp_memgraph.version|mcp-memgraph|mcp-memgraph|transpara|"
     "container_images.interfaces.tstore.version|tstore-interface|tstore-interface|transpara|"
+    "container_images.odbc_interface_api.version|odbc-interface-api|odbc-interface|transpara|"
+    "container_images.odbc_interface_worker.version|odbc-interface-worker|odbc-interface|transpara|"
     "container_images.extractors.odbc.version|extractor-odbc|extractor-odbc|transpara|"
     "container_images.extractors.opcua.version|extractor-opcua|extractor-opcua|transpara|"
     "container_images.extractors.telegraf.version|extractor-telegraf|extractor-telegraf|transpara|"
@@ -237,29 +242,51 @@ generate_transpara_sections() {
   mkdir -p "${workdir}/notes"
   local pids=()
   local names=()
+  declare -A SEEN_REPOS
 
   for entry in "${COMPONENTS[@]}"; do
     IFS='|' read -r yaml_path name repo comp_type tag_prefix <<< "${entry}"
     [[ "${comp_type}" != "transpara" ]] && continue
+
+    # Deduplicate by github_repo — multi-image repos share the same repo
+    if [[ "${repo}" != "—" ]] && [[ -n "${SEEN_REPOS[${repo}]+_}" ]]; then
+      continue
+    fi
 
     local curr_ver prev_ver
     curr_ver=$(get_version "${curr_yaml}" "${yaml_path}")
     prev_ver=""
     [[ -n "${prev_yaml}" ]] && prev_ver=$(get_version "${prev_yaml}" "${yaml_path}")
 
-    if ! version_changed "${prev_ver}" "${curr_ver}"; then continue; fi
+    if ! version_changed "${prev_ver}" "${curr_ver}"; then
+      [[ "${repo}" != "—" ]] && SEEN_REPOS[${repo}]=1
+      continue
+    fi
 
-    names+=("${name}")
+    # For multi-image repos, use repo name as display name
+    local display="${name}"
+    local repo_count=0
+    for check in "${COMPONENTS[@]}"; do
+      local check_repo
+      IFS='|' read -r _ _ check_repo _ _ <<< "${check}"
+      [[ "${check_repo}" == "${repo}" ]] && repo_count=$((repo_count + 1))
+    done
+    if [[ ${repo_count} -gt 1 ]]; then
+      display="${repo}"
+    fi
+
+    names+=("${display}")
+    [[ "${repo}" != "—" ]] && SEEN_REPOS[${repo}]=1
 
     # Write header + version line to temp file, then fetch notes in background
     {
-      echo "### ${name}"
+      echo "### ${display}"
       format_version_line "${prev_ver}" "${curr_ver}"
       echo ""
       fetch_notes_between "${repo}" "${prev_ver}" "${curr_ver}" "${tag_prefix}"
       echo "---"
       echo ""
-    } > "${workdir}/notes/${name}.md" 2>"${workdir}/notes/${name}.err" &
+    } > "${workdir}/notes/${display}.md" 2>"${workdir}/notes/${display}.err" &
     pids+=($!)
   done
 
@@ -381,9 +408,12 @@ generate_version_status() {
   # Check tinstaller + all transpara components for "behind latest"
   # Include tag_prefix so we can strip it when comparing versions
   local check_entries=("tinstaller.version|tinstaller|tinstaller|")
+  local -A seen_repos_status
   for entry in "${COMPONENTS[@]}"; do
     IFS='|' read -r yaml_path name repo comp_type tag_prefix <<< "${entry}"
     [[ "${comp_type}" != "transpara" ]] && continue
+    if [[ "${repo}" != "—" ]] && [[ -n "${seen_repos_status[${repo}]+_}" ]]; then continue; fi
+    [[ "${repo}" != "—" ]] && seen_repos_status[${repo}]=1
     check_entries+=("${yaml_path}|${name}|${repo}|${tag_prefix}")
   done
 
