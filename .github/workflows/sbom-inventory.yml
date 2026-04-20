@@ -1,0 +1,45 @@
+# SBOM Inventory — caller workflow
+#
+# Triggers the reusable SBOM inventory workflow in transpara/ci whenever a
+# release is published on this repo. The inventory (two CycloneDX files, one
+# for Transpara first party components and one for third party components)
+# is attached back to the triggering release as audit evidence for EU CRA
+# Art. 13 and CISA 2025.
+#
+# Why this lives here and not in transpara/ci:
+#   This repo owns the platform release lifecycle. The inventory is produced
+#   at release time, referring to this release's own versions.yaml and
+#   components.yaml assets, and attached back to this release. The generator
+#   logic itself is the reusable workflow in transpara/ci so it can be
+#   maintained centrally without touching this repo.
+#
+# Token usage:
+#   GITHUB_TOKEN (default, same repo scope) is used by the reusable workflow
+#     to download versions.yaml and components.yaml from the triggering
+#     release and to upload the two CycloneDX outputs back to it.
+#   READ_ALL_TOKEN is passed through as gh_read_token so the inventory script
+#     can run gh release view against component repos like transpara/tsystem-api
+#     for cross repo SBOM discovery. Same token already used by
+#     joint-release.yml for cross repo reads.
+
+name: SBOM Inventory
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  # The reusable workflow attaches assets to the triggering release, which
+  # requires contents: write on this repo. Declared here so the caller's
+  # GITHUB_TOKEN has the scope the reusable job needs.
+  contents: write
+
+jobs:
+  inventory:
+    # Pinned to main. Consider pinning to a commit SHA if stricter supply
+    # chain immutability becomes a requirement.
+    uses: transpara/ci/.github/workflows/generate-sbom-inventory.yaml@main
+    with:
+      release_tag: ${{ github.event.release.tag_name }}
+    secrets:
+      gh_read_token: ${{ secrets.READ_ALL_TOKEN }}
