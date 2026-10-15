@@ -14,6 +14,13 @@ API_IMG=$(kubectl -n $NS get deploy tsystem-api -o jsonpath='{.spec.template.spe
 REPO=${API_IMG%%/tsystem-api*}
 MIG_IMG="$REPO/tinstaller-migrations:$TO"
 JOB=migrations-replay-$(date +%s)
+ver_lt() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]; }
+if ver_lt "${TO%%-*}" 0.274.0; then
+  echo "ERROR: installed version is $TO; nothing to replay (needs >= 0.274.0). Is an upgrade still running?" >&2; exit 1
+fi
+if kubectl -n $NS get jobs -l app=tsystem-upgrade -o jsonpath='{range .items[*]}{.status.active}{"\n"}{end}' | grep -q 1; then
+  echo "ERROR: an upgrade Job is still running in $NS; wait for it to finish." >&2; exit 1
+fi
 echo "FROM=$FROM TO=$TO DRY_RUN=$DRY"
 echo "runner image:     $API_IMG"
 echo "migrations image: $MIG_IMG"
@@ -36,10 +43,10 @@ r.run_post_upgrade(FROM, TO, NS, None, context=ctx); print("POST_DONE", flush=Tr
 EOF
 )
 
-kubectl -n $NS get deploy tsystem-api -o json | jq --arg job "$JOB" --arg mig "$MIG_IMG" --arg py "$PY" '
+kubectl -n $NS get deploy tsystem-api -o json | jq --arg ns "$NS" --arg job "$JOB" --arg mig "$MIG_IMG" --arg py "$PY" '
   .spec.template.spec as $p | ($p.containers[0]) as $c | {
   apiVersion: "batch/v1", kind: "Job",
-  metadata: {name: $job, labels: {app: "migrations-replay"}},
+  metadata: {name: $job, namespace: $ns, labels: {app: "migrations-replay"}},
   spec: {backoffLimit: 0, ttlSecondsAfterFinished: 86400, template: {spec: {
     serviceAccountName: ($p.serviceAccountName // "tsystem-api"),
     restartPolicy: "Never",
@@ -54,12 +61,13 @@ kubectl -n $NS get deploy tsystem-api -o json | jq --arg job "$JOB" --arg mig "$
       command: ["python", "-c", $py],
       env: ($c.env // []), envFrom: ($c.envFrom // []),
       volumeMounts: (($c.volumeMounts // []) + [{name: "migrations", mountPath: "/shared/migrations"}])}]
-  }}}}' | kubectl apply -f -
+  }}}}' | kubectl -n $NS apply -f -
 
-kubectl -n $NS wait --for=condition=complete --timeout=20m job/$JOB &
-W1=$!
-kubectl -n $NS wait --for=condition=failed --timeout=20m job/$JOB && kill $W1 2>/dev/null || true
-wait $W1 2>/dev/null || true
+echo "waiting for job/$JOB ..."
+for i in $(seq 1 240); do
+  S=$(kubectl -n $NS get job $JOB -o jsonpath='{.status.succeeded}{.status.failed}')
+  [ -n "$S" ] && break; sleep 5
+done
 kubectl -n $NS logs job/$JOB -c migrate --tail=-1
 kubectl -n $NS get job $JOB -o jsonpath='{"\nJob result: succeeded="}{.status.succeeded}{" failed="}{.status.failed}{"\n"}'
 if [ $DRY = 0 ] && [ "$(kubectl -n $NS get job $JOB -o jsonpath='{.status.succeeded}')" = 1 ]; then
