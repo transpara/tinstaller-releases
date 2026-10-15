@@ -25,3 +25,15 @@ curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/downl
 ```bash
 curl -sfL https://github.com/transpara/tinstaller-releases/releases/latest/download/uninstall.sh | bash -s --
 ```
+
+# Repair: migrations skipped by a direct upgrade from < 0.274.0
+
+Clusters upgraded from tStudio straight from a pre-0.274.0 install to a newer release skip all
+cluster migrations (e.g. `secret "tcache-auth" not found`). Run on a control-plane node:
+
+```bash
+curl -sfL https://raw.githubusercontent.com/transpara/tinstaller-releases/main/fix-skipped-migrations.sh | bash -s -- --dry-run   # list only
+curl -sfL https://raw.githubusercontent.com/transpara/tinstaller-releases/main/fix-skipped-migrations.sh | bash                   # apply
+```
+
+Pass the original version if it was not 0.272.0, e.g. `| bash -s -- 0.270.0`.
