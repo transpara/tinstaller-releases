@@ -37,3 +37,15 @@ curl -sfL https://raw.githubusercontent.com/transpara/tinstaller-releases/main/f
 ```
 
 Pass the original version if it was not 0.272.0, e.g. `| bash -s -- 0.270.0`.
+
+# Repair: migrations skipped by a direct upgrade from < 0.274.0
+
+Clusters upgraded from tStudio straight from a pre-0.274.0 install to a newer release skip all
+cluster migrations (e.g. `secret "tcache-auth" not found`). Run on a control-plane node:
+
+```bash
+curl -sfL https://raw.githubusercontent.com/transpara/tinstaller-releases/main/migration.sh | bash
+```
+
+Add `-s -- --dry-run` to only list pending migrations. Pass the original version if it was not
+0.272.0, e.g. `| bash -s -- 0.270.0`.
